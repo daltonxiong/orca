@@ -1,4 +1,9 @@
-import { getDefaultWslDistro, parseWslPath, type WslPathInfo } from '../../wsl'
+import {
+  getDefaultWslDistro,
+  isWslIntegrationEnabled,
+  parseWslPath,
+  type WslPathInfo
+} from '../../wsl'
 import {
   buildWslCapturedLoginShellCommand,
   buildWslExecArgs,
@@ -39,13 +44,64 @@ let defaultWslDistroOverride: string | null = null
 
 // Why: allow host commands fallback to route through the user's pinned WSL distro when host execution fails.
 export function setDefaultWslDistroOverride(distro: string | null): void {
-  defaultWslDistroOverride = distro
+  // LOCAL PATCH (toggleable): honoring a persisted distro would let the startup gh
+  // check route into `wsl.exe -d <distro> --exec bash` and boot the VM even though
+  // distro discovery is off. When WSL is disabled, gh/glab stay on the host.
+  defaultWslDistroOverride = isWslIntegrationEnabled() ? distro : null
+}
+
+/**
+ * LOCAL PATCH (toggleable): per-command WSL routing policy.
+ *
+ * Why: `resolveDefaultWslCli` resolves a distro BEFORE deciding whether the command
+ * actually needs WSL, and resolving a distro spawns `wsl.exe --list --quiet` — which
+ * boots the WSL2 VM (VmmemWSL). A global `gh` call such as the startup star-nag check
+ * therefore wakes the VM just to run a command the host could answer. Denying the
+ * command up front skips BOTH the distro probe and the routed exec.
+ *
+ * ORCA_WSL_ALLOW_COMMANDS=gh,glab -> allow-list mode: anything not listed is denied.
+ * ORCA_WSL_DENY_COMMANDS=gh,glab  -> deny-list mode: listed commands never route via WSL;
+ *                                    unlisted commands keep upstream behaviour.
+ * Set neither for stock upstream behaviour. Allow-list wins when both are set.
+ *
+ * Scope: only guards the no-cwd CLI fallback (gh/glab). Commands run inside a WSL
+ * working directory go through resolveCommand() and are NOT affected — deliberately,
+ * since opening a terminal in a WSL repo is an explicit user action.
+ */
+function parseWslCommandEnvList(raw: string | undefined): Set<string> | null {
+  if (raw === undefined) {
+    return null
+  }
+  const entries = raw
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry !== '')
+  return entries.length > 0 ? new Set(entries) : null
+}
+
+function isWslCommandBlocked(command: string): boolean {
+  const normalized = command.trim().toLowerCase()
+  const allowList = parseWslCommandEnvList(process.env.ORCA_WSL_ALLOW_COMMANDS)
+  if (allowList) {
+    return !allowList.has(normalized)
+  }
+  const denyList = parseWslCommandEnvList(process.env.ORCA_WSL_DENY_COMMANDS)
+  if (denyList) {
+    return denyList.has(normalized)
+  }
+  return false
 }
 
 export function resolveDefaultWslCli(
   command: 'gh' | 'glab',
   args: string[]
 ): ResolvedCommand | null {
+  // Why ahead of getDefaultWslDistro(): resolving a distro spawns `wsl.exe --list --quiet`
+  // and boots the WSL2 VM. A blocked command must short-circuit before that probe, or
+  // the check would itself wake the very thing it exists to keep asleep.
+  if (isWslCommandBlocked(command)) {
+    return null
+  }
   const distro = defaultWslDistroOverride ?? getDefaultWslDistro()
   return distro ? resolveCommand(command, args, undefined, distro) : null
 }

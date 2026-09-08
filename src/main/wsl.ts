@@ -147,6 +147,33 @@ function cacheWslDistroList(rawDistros: string[], probeSequence: number): string
   return wslDistroCache
 }
 
+/**
+ * LOCAL PATCH (toggleable): master switch for WSL integration.
+ *
+ * Why: distro discovery spawns `wsl.exe --list --quiet`, which boots the WSL2 VM
+ * (VmmemWSL) and can hoard 1.5-5.5GB RAM on a 16GB machine — measured peaking at
+ * ~92% of total memory. Pure-Windows use never needs WSL.
+ *
+ * Default is DISABLED, so discovery returns [] and Orca never touches wsl.exe
+ * (no startup orca-ide registration, no gh/glab WSL fallback, no terminal
+ * probing). Flip the "WSL integration" switch in Settings → Terminal to opt
+ * back into upstream behaviour.
+ *
+ * Why a module-level flag instead of reading the store: this module is the
+ * lowest layer of the WSL stack and sits outside the dependency-injection
+ * chain, so it cannot reach the Store. The startup foundation pushes the
+ * persisted value in via setWslIntegrationEnabled() and keeps it in sync.
+ */
+let wslIntegrationEnabled = false
+
+export function setWslIntegrationEnabled(enabled: boolean): void {
+  wslIntegrationEnabled = enabled
+}
+
+export function isWslIntegrationEnabled(): boolean {
+  return wslIntegrationEnabled
+}
+
 /** A non-empty list is stable; an empty one re-probes once the retry window elapses. */
 function shouldReuseCachedWslDistros(): boolean {
   return (
@@ -155,6 +182,10 @@ function shouldReuseCachedWslDistros(): boolean {
 }
 
 export function listWslDistros(): string[] {
+  // LOCAL PATCH (toggleable): short-circuit before any wsl.exe spawn.
+  if (!isWslIntegrationEnabled()) {
+    return []
+  }
   if (shouldReuseCachedWslDistros()) {
     return wslDistroCache ?? []
   }
@@ -184,6 +215,10 @@ export function listWslDistros(): string[] {
 }
 
 export async function listWslDistrosAsync(): Promise<string[]> {
+  // LOCAL PATCH (toggleable): short-circuit before any wsl.exe spawn.
+  if (!isWslIntegrationEnabled()) {
+    return []
+  }
   // A non-empty list is lifetime-stable, so never wait on a probe that cannot improve it.
   if (wslDistroCache !== null && wslDistroCache.length > 0) {
     return wslDistroCache

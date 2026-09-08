@@ -307,6 +307,7 @@ export function TerminalPane({
         updateSettings={updateSettings}
         windowsShell={windowsShell}
         gitBashAvailable={gitBashAvailable}
+        wslIntegrationEnabled={settings.wslIntegrationEnabled === true}
       />
     ) : null,
     matchesSettingsSearch(searchQuery, getTerminalRenderingSearchEntries()) ? (

@@ -3,7 +3,8 @@ import { WINDOWS_GIT_BASH_SHELL } from '../../../../shared/windows-terminal-shel
 import {
   SettingsRow,
   SettingsSegmentedControl,
-  SettingsSubsectionHeader
+  SettingsSubsectionHeader,
+  SettingsSwitchRow
 } from './SettingsFormControls'
 import { SearchableSetting } from './SearchableSetting'
 import { translate } from '@/i18n/i18n'
@@ -13,6 +14,7 @@ type TerminalWindowsShellSectionProps = {
   updateSettings: (updates: Partial<GlobalSettings>) => void
   windowsShell: string
   gitBashAvailable: boolean
+  wslIntegrationEnabled: boolean
 }
 
 function windowsShellLabel(shell: string, label: string): React.JSX.Element {
@@ -27,7 +29,8 @@ function windowsShellLabel(shell: string, label: string): React.JSX.Element {
 export function TerminalWindowsShellSection({
   updateSettings,
   windowsShell,
-  gitBashAvailable
+  gitBashAvailable,
+  wslIntegrationEnabled
 }: TerminalWindowsShellSectionProps): React.JSX.Element {
   const showGitBashOption = gitBashAvailable || windowsShell === WINDOWS_GIT_BASH_SHELL
   // Why: selecting WSL here would omit its required distro, but an existing WSL default must stay visible.
@@ -140,6 +143,31 @@ export function TerminalWindowsShellSection({
                 ]}
               />
             }
+          />
+        </SearchableSetting>
+
+        <SearchableSetting
+          title={translate(
+            'auto.components.settings.TerminalWindowsShellSection.wslIntegrationTitle',
+            'WSL Integration'
+          )}
+          description={translate(
+            'auto.components.settings.TerminalWindowsShellSection.wslIntegrationDescription',
+            'Whether Orca may detect and use WSL distros.'
+          )}
+          keywords={['wsl', 'windows', 'integration', 'distro', 'vmmem', 'memory', 'vm']}
+        >
+          <SettingsSwitchRow
+            label={translate(
+              'auto.components.settings.TerminalWindowsShellSection.wslIntegrationTitle',
+              'WSL Integration'
+            )}
+            description={translate(
+              'auto.components.settings.TerminalWindowsShellSection.wslIntegrationRowDescription',
+              'When off, Orca never runs wsl.exe, so the WSL2 VM (VmmemWSL) stays asleep instead of using gigabytes of RAM.'
+            )}
+            checked={wslIntegrationEnabled}
+            onChange={() => updateSettings({ wslIntegrationEnabled: !wslIntegrationEnabled })}
           />
         </SearchableSetting>
       </div>

@@ -170,6 +170,8 @@ export type GlobalSettings = NativeChatGlobalSettings & {
   terminalDefaultShellArgs?: string[]
   /** Pins the WSL distro for terminals/agent scans instead of WSL's current global default. */
   terminalWindowsWslDistro?: string | null
+  /** LOCAL PATCH: Windows-only master switch; when false, WSL distro discovery short-circuits so Orca never spawns wsl.exe (keeps VmmemWSL asleep). */
+  wslIntegrationEnabled?: boolean
   /** Account/auth location; auto follows the global Windows runtime while host/wsl pin it. */
   localAccountRuntime: 'auto' | 'host' | 'wsl'
   localAccountWslDistro?: string | null

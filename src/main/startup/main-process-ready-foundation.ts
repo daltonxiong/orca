@@ -24,6 +24,7 @@ import {
   setDefaultWslDistroOverride
 } from '../git/runner'
 import { wslHookRelayManager } from '../agent-hooks/wsl-hook-relay-manager'
+import { setWslIntegrationEnabled } from '../wsl'
 import {
   attachClaudeLivePtyPersistence,
   onLiveClaudePtysDrained,
@@ -219,6 +220,9 @@ export async function initializeReadyFoundation(): Promise<void> {
   )
   // Why: apply initial fallback WSL distro from store settings for global git/CLI calls.
   setDefaultWslDistroOverride(store.getSettings().terminalWindowsWslDistro ?? null)
+  // LOCAL PATCH: seed the WSL master switch before anything can probe for distros.
+  // `=== true` because profiles saved before this setting existed omit the key.
+  setWslIntegrationEnabled(store.getSettings().wslIntegrationEnabled === true)
   store.onSettingsChanged((updates, settings) => {
     if ('electronHttp1CompatibilityMode' in updates) {
       writeHttp1CompatibilityMarker(
@@ -230,6 +234,10 @@ export async function initializeReadyFoundation(): Promise<void> {
     if ('terminalWindowsWslDistro' in updates) {
       // Why: synchronize fallback WSL distro updates to runner.
       setDefaultWslDistroOverride(settings.terminalWindowsWslDistro ?? null)
+    }
+    if ('wslIntegrationEnabled' in updates) {
+      // LOCAL PATCH: keep the WSL master switch in sync with the Settings toggle.
+      setWslIntegrationEnabled(settings.wslIntegrationEnabled === true)
     }
     if (
       ('terminalWindowsShell' in updates || 'terminalWindowsPowerShellImplementation' in updates) &&

@@ -94,6 +94,7 @@ export function buildDefaultSettings(args: {
     terminalWindowsShell: 'powershell.exe',
     terminalDefaultShell: '',
     terminalWindowsWslDistro: null,
+    wslIntegrationEnabled: false,
     localAccountRuntime: 'auto',
     localAccountRuntimeDefaultedToAutoForAllUsers: true,
     localAccountWslDistro: null,
