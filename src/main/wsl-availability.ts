@@ -1,6 +1,7 @@
 import { execFile, execFileSync } from 'node:child_process'
 import { runProcess, runProcessSync, type ProcessSpec } from '../shared/child-process/run-process'
 import { buildWslExecArgs } from '../shared/wsl-login-shell-command'
+import { isWslIntegrationEnabled } from './wsl-integration-gate'
 import { resolveWslInteropSpawnCwd } from './wsl-interop-spawn-directory'
 
 type WslAvailabilityCache =
@@ -176,6 +177,11 @@ function probeWslStatus(): Promise<void> {
  * WSL off for the whole session.
  */
 export function isWslAvailable(): boolean {
+  // LOCAL PATCH (toggleable): answer without spawning `wsl.exe --status`. Deliberately not
+  // cached, so turning integration back on probes for real on the next ask.
+  if (!isWslIntegrationEnabled()) {
+    return false
+  }
   const cached = reusableWslAvailability()
   if (cached !== null) {
     return cached
@@ -213,6 +219,10 @@ export function isWslAvailable(): boolean {
  * wedged wsl.exe. Concurrent callers share one spawn.
  */
 export function isWslAvailableAsync(): Promise<boolean> {
+  // LOCAL PATCH (toggleable): see the sync twin — no spawn, no cache write.
+  if (!isWslIntegrationEnabled()) {
+    return Promise.resolve(false)
+  }
   const cached = reusableWslAvailability()
   if (cached !== null) {
     return Promise.resolve(cached)

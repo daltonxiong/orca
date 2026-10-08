@@ -7,6 +7,7 @@ import {
   _setWslAvailabilityCacheForTests,
   dropStaleWslAvailabilityFailure
 } from './wsl-availability'
+import { isWslIntegrationEnabled } from './wsl-integration-gate'
 import { resolveWslInteropSpawnCwd } from './wsl-interop-spawn-directory'
 import {
   _resetRunningWslDistroCacheForTests,
@@ -147,32 +148,10 @@ function cacheWslDistroList(rawDistros: string[], probeSequence: number): string
   return wslDistroCache
 }
 
-/**
- * LOCAL PATCH (toggleable): master switch for WSL integration.
- *
- * Why: distro discovery spawns `wsl.exe --list --quiet`, which boots the WSL2 VM
- * (VmmemWSL) and can hoard 1.5-5.5GB RAM on a 16GB machine — measured peaking at
- * ~92% of total memory. Pure-Windows use never needs WSL.
- *
- * Default is DISABLED, so discovery returns [] and Orca never touches wsl.exe
- * (no startup orca-ide registration, no gh/glab WSL fallback, no terminal
- * probing). Flip the "WSL integration" switch in Settings → Terminal to opt
- * back into upstream behaviour.
- *
- * Why a module-level flag instead of reading the store: this module is the
- * lowest layer of the WSL stack and sits outside the dependency-injection
- * chain, so it cannot reach the Store. The startup foundation pushes the
- * persisted value in via setWslIntegrationEnabled() and keeps it in sync.
- */
-let wslIntegrationEnabled = false
-
-export function setWslIntegrationEnabled(enabled: boolean): void {
-  wslIntegrationEnabled = enabled
-}
-
-export function isWslIntegrationEnabled(): boolean {
-  return wslIntegrationEnabled
-}
+// LOCAL PATCH (toggleable): the master switch lives in a leaf module so
+// `wsl-availability.ts` can read it too without this file's own import of that one
+// closing a cycle. Re-exported here because every existing caller imports it from `wsl`.
+export { isWslIntegrationEnabled, setWslIntegrationEnabled } from './wsl-integration-gate'
 
 /** A non-empty list is stable; an empty one re-probes once the retry window elapses. */
 function shouldReuseCachedWslDistros(): boolean {
@@ -268,6 +247,12 @@ export async function listWslDistrosAsync(): Promise<string[]> {
 export async function listRunningWslDistrosAsync(
   options: { requireConfirmed?: boolean } = {}
 ): Promise<string[]> {
+  // LOCAL PATCH (toggleable): this one probes through its own helper rather than
+  // listWslDistros, so it needs its own gate — without it the switch still spawns
+  // `wsl.exe --list --running` and boots the VM.
+  if (!isWslIntegrationEnabled()) {
+    return []
+  }
   if (process.platform !== 'win32') {
     return []
   }
